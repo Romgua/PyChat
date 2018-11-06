@@ -1,9 +1,10 @@
-import socket, time, select, queue
+import socket, time, select, queue, os, sys
 from gui import *
 
 ENCODING = 'utf-8'
 HOST = 'localhost'
 PORT = 5000
+
 
 class Client(threading.Thread):
     def __init__(self, host, port):
@@ -19,15 +20,22 @@ class Client(threading.Thread):
         self.lock = threading.RLock()
 
         self.login = ''
-        self.target = ''
         self.login_list = ['ALL']
+        # # If login is past by shell argument
+        # if sys.argv[2:]:
+        #     self.login = sys.argv[2]
+        #     self.login_list = ['ALL', sys.argv[2]]
+
+        self.target = ''
 
         if self.connected:
-            self.gui = GUI(self)
+            if sys.argv[2:]:
+                self.gui = GUI(self, sys.argv[2:])
+            else:
+                self.gui = GUI(self)
             self.start()
             self.gui.start()
             # Only gui is non-daemon thread, therefore after closing gui app will quit
-
 
     def connect_to_server(self):
         """Connect to server via socket interface, return (is_connected)"""
@@ -38,7 +46,6 @@ class Client(threading.Thread):
             print("Server is inactive, unable to connect")
             return False
         return True
-
 
     def run(self):
         """Handle client-server communication using select module"""
@@ -82,7 +89,6 @@ class Client(threading.Thread):
                 self.sock.close()
                 break
 
-
     def process_received_data(self, data):
         """Process received message from server"""
         if data:
@@ -95,15 +101,19 @@ class Client(threading.Thread):
                     message = message[1].strip()
                     if message not in self.login_list:
                         self.add_to_login_list(message)
-                
+                        text = message + ' has joined the chat.\n'
+                        self.gui.display_message(text)
+
                 elif 'left the chat' in message:
                     message = message.split("left")
                     message = message[0].strip()
+                    text = message + ' has left the chat.\n'
+                    self.gui.display_message(text)
                     print("client.py - 92: self.login_list = ", self.login_list)
                     print("client.py - 92: message = ", message)
                     if message in self.login_list:
                         self.remove_to_login_list(message)
-                    
+
                 else:
                     message = message.split(">")
                     msg = message[1].strip().split(";")
@@ -111,9 +121,9 @@ class Client(threading.Thread):
 
                     if '::ffff' in msg:
                         msg = msg[23:]
-                    
+
                     print("client.py - 106: msg = ", msg)
-                    
+
                     if msg[1] not in self.login_list:
                         self.add_to_login_list(msg[1])
 
@@ -123,7 +133,6 @@ class Client(threading.Thread):
                         print("client.py - 114: text = ", text)
                         self.gui.display_message(text)
 
-
     def notify_server(self, action, action_type):
         """Notify server if action is performed by client"""
         self.queue.put(action)
@@ -131,7 +140,6 @@ class Client(threading.Thread):
             self.login = action.decode(ENCODING).split(';')[1]
         elif action_type == "logout":
             self.sock.close()
-
 
     def send_message(self, data):
         """"Send encoded message to server"""
@@ -141,7 +149,7 @@ class Client(threading.Thread):
                 print("client.py - 132: data = ", data)
                 print("client.py - 133: actions = ", actions)
                 if actions[0] == "login":
-                    data = "#pseudo="+actions[1]
+                    data = "#pseudo=" + actions[1]
                     data = data.encode()
                 print("client.py - 139: data = ", data)
                 self.sock.send(data)
@@ -149,11 +157,9 @@ class Client(threading.Thread):
                 self.sock.close()
                 GUI.display_alert('Server error has occurred. Exit app')
 
-
     def add_to_login_list(self, user):
         self.login_list.append(user)
         self.gui.update_login_list(self.login_list)
-
 
     def remove_to_login_list(self, user):
         print("client.py - 156 : self.login_list = ", self.login_list)
@@ -167,4 +173,7 @@ class Client(threading.Thread):
 
 # Create new client with (IP, port)
 if __name__ == '__main__':
+    # If HOST is past by shell argument
+    if sys.argv[1:]:
+        HOST = sys.argv[1]
     Client(HOST, PORT)

@@ -7,17 +7,21 @@ ENCODING = 'utf-8'
 
 
 class GUI(threading.Thread):
-    def __init__(self, client):
-        super().__init__(daemon=False, target=self.run)
+    def __init__(self, client, args=None):
+        super().__init__(daemon=False, target=self.run, args=args)
+        self.args = args
         self.font = ('Helvetica', 13)
         self.client = client
         self.login_window = None
         self.main_window = None
 
     def run(self):
-        self.login_window = LoginWindow(self, self.font)
+        self.login_window = LoginWindow(self, self.font, self.args)
         self.main_window = ChatWindow(self, self.font)
-        self.notify_server(self.login_window.login, 'login')
+        if not self.args:
+            self.notify_server(self.login_window.login, 'login')
+        else:
+            self.notify_server(self.args[0], 'login')
         self.main_window.run()
 
     @staticmethod
@@ -69,16 +73,20 @@ class Window(object):
 
 
 class LoginWindow(Window):
-    def __init__(self, gui, font):
-        super().__init__("Login", font)
+    def __init__(self, gui, font, args):
+        if not args:
+            super().__init__("Login", font)
         self.gui = gui
         self.label = None
         self.entry = None
         self.button = None
         self.login = None
 
-        self.build_window()
-        self.run()
+        if not args:
+            self.build_window()
+            self.run()
+        else:
+            self.login = args[0]
 
     def build_window(self):
         """Build login window, , set widgets positioning and event bindings"""
@@ -201,6 +209,7 @@ class ChatWindow(Window):
 
     def send_entry_event(self, event):
         """Send message from entry field to target"""
+        global message
         text = self.entry.get(1.0, tk.END)
         if text != '\n':
             message = 'msg;' + self.login + ';' + self.target + ';' + text[:-1] + '\r\n'
@@ -225,6 +234,7 @@ class ChatWindow(Window):
 
     def exit_event(self, event):
         """Send logout message and quit app when "Exit" pressed"""
+        print(self.login)
         self.gui.notify_server(self.login, 'logout')
         self.root.quit()
 
