@@ -260,7 +260,11 @@ class ChatWindow(Window):
         self.target = self.logins_list.get(self.logins_list.curselection())
 
     def beautify_message(self, msg):
+        print("gui.py - 263: self.login = ", self.login)
+        print("gui.py - 264: msg = ", msg)
         text = msg
         if len(msg) > 3:
-            text = msg[1]+' >> ['+msg[2]+'] '+msg[3]+'\n'
+            text = msg[1]+' >> ['+msg[2]+'] '+msg[3]
+            if (msg[1] != self.login):
+                text += '\n'
         return text
