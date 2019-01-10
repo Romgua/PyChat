@@ -14,3 +14,6 @@ Channel Messaging in Python
 
 ### Client with a name
 > py client.py 127.0.0.1 Romain
+
+### Client with AES encryption
+> py client.py 127.0.0.1 Romain This_key_for_demo_purposes_only!

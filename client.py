@@ -5,7 +5,6 @@ ENCODING = 'utf-8'
 HOST = 'localhost'
 PORT = 5000
 
-
 class Client(threading.Thread):
     def __init__(self, host, port):
         super().__init__(daemon=True, target=self.run)
@@ -21,10 +20,6 @@ class Client(threading.Thread):
 
         self.login = ''
         self.login_list = ['ALL']
-        # # If login is past by shell argument
-        # if sys.argv[2:]:
-        #     self.login = sys.argv[2]
-        #     self.login_list = ['ALL', sys.argv[2]]
 
         self.target = ''
 
@@ -65,7 +60,6 @@ class Client(threading.Thread):
                 with self.lock:
                     try:
                         data = self.sock.recv(self.buffer_size)
-                        print("client.py - 61: data =", data)
                     except socket.error:
                         print("Socket error")
                         GUI.display_alert('Socket error has occurred. Exit app')
@@ -77,7 +71,6 @@ class Client(threading.Thread):
             if self.sock in write:
                 if not self.queue.empty():
                     data = self.queue.get()
-                    print("client.py - 68: data = ", data)
                     self.send_message(data)
                     self.queue.task_done()
                 else:
@@ -93,9 +86,7 @@ class Client(threading.Thread):
         """Process received message from server"""
         if data:
             message = data.decode(ENCODING)
-            print("client.py - 90: message = ", message)
             if '#pseudo' not in message and 'joined the chat' not in message:
-                print("client.py - 92: message = ", message)
                 if 'has now pseudo' in message:
                     message = message.split("pseudo")
                     message = message[1].strip()
@@ -109,28 +100,21 @@ class Client(threading.Thread):
                     message = message[0].strip()
                     text = message + ' has left the chat.\n'
                     self.gui.display_message(text)
-                    print("client.py - 92: self.login_list = ", self.login_list)
-                    print("client.py - 92: message = ", message)
                     if message in self.login_list:
                         self.remove_to_login_list(message)
 
                 else:
                     message = message.split(">")
                     msg = message[1].strip().split(";")
-                    print("client.py - 101: ", message)
 
                     if '::ffff' in msg:
                         msg = msg[23:]
 
-                    print("client.py - 106: msg = ", msg)
-
                     if msg[1] not in self.login_list:
                         self.add_to_login_list(msg[1])
 
-                    print("client.py - 111: self.login = ", self.login)
                     if msg[2] == self.login or msg[2] == 'ALL':
                         text = self.beautify_message(msg)
-                        print("client.py - 114: text = ", text)
                         self.gui.display_message(text)
 
     def notify_server(self, action, action_type):
@@ -146,12 +130,9 @@ class Client(threading.Thread):
         with self.lock:
             try:
                 actions = data.decode(ENCODING).split(';')
-                print("client.py - 132: data = ", data)
-                print("client.py - 133: actions = ", actions)
                 if actions[0] == "login":
                     data = "#pseudo=" + actions[1]
-                    data = data.encode()
-                print("client.py - 139: data = ", data)
+                    data = data.encode(ENCODING)
                 self.sock.send(data)
             except socket.error:
                 self.sock.close()
@@ -162,18 +143,17 @@ class Client(threading.Thread):
         self.gui.update_login_list(self.login_list)
 
     def remove_to_login_list(self, user):
-        print("client.py - 156 : self.login_list = ", self.login_list)
         self.login_list.remove(user)
-        print("client.py - 158 : self.login_list = ", self.login_list)
         self.gui.update_login_list(self.login_list)
 
     def beautify_message(self, msg):
         return self.gui.beautify_message(msg)
 
 
-# Create new client with (IP, port)
+# Create new client with (IP, port)²
 if __name__ == '__main__':
     # If HOST is past by shell argument
     if sys.argv[1:]:
         HOST = sys.argv[1]
+
     Client(HOST, PORT)

@@ -1,9 +1,12 @@
+import base64
 import tkinter as tk
 import threading
 from tkinter import scrolledtext
 from tkinter import messagebox
+import pyaes
 
 ENCODING = 'utf-8'
+RSA_KEY = None
 
 
 class GUI(threading.Thread):
@@ -14,6 +17,11 @@ class GUI(threading.Thread):
         self.client = client
         self.login_window = None
         self.main_window = None
+
+        # RSA_KEY
+        if self.args and len(self.args) > 1:
+            global RSA_KEY
+            RSA_KEY = self.args[1].encode(ENCODING)
 
     def run(self):
         self.login_window = LoginWindow(self, self.font, self.args)
@@ -43,7 +51,6 @@ class GUI(threading.Thread):
 
     def send_message(self, message):
         """Enqueue message in client's queue"""
-        print("gui.py - 38: message =", message)
         self.client.queue.put(message)
 
     def set_target(self, target):
@@ -54,7 +61,6 @@ class GUI(threading.Thread):
         """Notify server after action was performed"""
         data = action + ";" + message
         data = data.encode(ENCODING)
-        print("gui.py - 48: ", data)
         self.client.notify_server(data, action)
 
     def login(self, login):
@@ -212,9 +218,19 @@ class ChatWindow(Window):
         global message
         text = self.entry.get(1.0, tk.END)
         if text != '\n':
-            message = 'msg;' + self.login + ';' + self.target + ';' + text[:-1] + '\r\n'
-            print("gui.py - 201: ", message)
-            self.gui.send_message(message.encode(ENCODING))
+            if RSA_KEY:
+                # Encrypt!
+                aes = pyaes.AESModeOfOperationOFB(RSA_KEY)
+                # Message encrypt in bytes
+                msg = aes.encrypt(text[:-1])
+                # Base64 encode message to send to server
+                my_msg = base64.b64encode(msg)
+                message = bytes('msg;' + self.login + ';' + self.target + ';', ENCODING) + my_msg
+            else:
+                message = 'msg;' + self.login + ';' + self.target + ';' + text
+                message = message.encode(ENCODING)
+
+            self.gui.send_message(message)
             self.entry.mark_set(tk.INSERT, 1.0)
             self.entry.delete(1.0, tk.END)
             self.entry.focus_set()
@@ -224,9 +240,10 @@ class ChatWindow(Window):
         with self.lock:
             self.messages_list.configure(state='normal')
             if text != '\n':
-                print("gui.py - 214: text = ", text)
-                text = self.beautify_message(message.split(';'))
-                print("gui.py - 214: text = ", text)
+                if self.isBytes(message):
+                    text = self.beautify_message(message)
+                else:
+                    text = self.beautify_message(message.split(';'))
                 self.messages_list.insert(tk.END, text)
             self.messages_list.configure(state='disabled')
             self.messages_list.see(tk.END)
@@ -234,7 +251,6 @@ class ChatWindow(Window):
 
     def exit_event(self, event):
         """Send logout message and quit app when "Exit" pressed"""
-        print(self.login)
         self.gui.notify_server(self.login, 'logout')
         self.root.quit()
 
@@ -243,7 +259,6 @@ class ChatWindow(Window):
         self.exit_event(None)
 
     def display_message(self, message):
-        print("gui.py - 229: message = ", message)
         """Display message in ScrolledText widget"""
         with self.lock:
             self.messages_list.configure(state='normal')
@@ -260,11 +275,29 @@ class ChatWindow(Window):
         self.target = self.logins_list.get(self.logins_list.curselection())
 
     def beautify_message(self, msg):
-        print("gui.py - 263: self.login = ", self.login)
-        print("gui.py - 264: msg = ", msg)
         text = msg
         if len(msg) > 3:
-            text = msg[1]+' >> ['+msg[2]+'] '+msg[3]
-            if (msg[1] != self.login):
-                text += '\n'
+            if self.isBytes(msg):
+                msg = msg.decode(ENCODING).split(';')
+            text = msg[1] + ' >> [' + msg[2] + '] '
+
+            # If message encrypted
+            if RSA_KEY:
+                aes = pyaes.AESModeOfOperationOFB(RSA_KEY)
+                #base64 decode
+                decoded_msg = base64.b64decode(msg[3])
+                # Decrypt!
+                decryptedMsg = aes.decrypt(decoded_msg).decode(ENCODING)
+
+                text += decryptedMsg
+            else:
+                text += msg[3]
+
+            # If message received
+            # if (msg[1] != self.login):
+            text += '\r\n'
+
         return text
+
+    def isBytes(self, msg):
+        return type(msg) == type(b'')
